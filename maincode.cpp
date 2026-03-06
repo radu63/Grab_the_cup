@@ -48,16 +48,6 @@ float followRightTurnL = 1.00, followRightTurnR = 0.00;  // full pivot right
 
 // --- Obstacle avoidance ---
 int obstacleCm = 5;
-unsigned long avoidTurnLeftMs   = 500;
-unsigned long avoidForward1Ms   = 650;
-unsigned long avoidCurveRightMs = 800;
-unsigned long avoidForward2Ms   = 200;
-unsigned long avoidTurnBackMs   = 0;
-unsigned long avoidSeekMs       = 10;
-float avoidFwdL = 0.85, avoidFwdR = 0.85;
-float avoidTurnRightL = 0.50, avoidTurnRightR = 0.50;
-float avoidTurnLeftL  = 0.00, avoidTurnLeftR  = 0.90;
-float avoidTurnBackL  = 0.60, avoidTurnBackR  = 0.00;
 
 // --- Drop ---
 unsigned long backupMs              = 3000;
@@ -83,12 +73,6 @@ enum State {
   START_TURN_LEFT,
   START_FORWARD_AFTER_TURN,
   RUN_FOLLOW,
-  AVOID_TURN_LEFT,
-  AVOID_FORWARD_1,
-  AVOID_CURVE_RIGHT,
-  AVOID_FORWARD_2,
-  AVOID_TURN_BACK,
-  AVOID_SEEK_LINE,
   DROP_BACKUP_BEFORE_OPEN,
   DROP_OPEN_WHILE_BACKING,
   DROP_BACKUP_AFTER_OPEN,
@@ -148,12 +132,6 @@ void setLedsForState(State s) {
     case START_TURN_LEFT:
     case START_FORWARD_AFTER_TURN: ledsAll(COL_BLUE);   break;
     case RUN_FOLLOW:               ledsAll(COL_GREEN);  break;
-    case AVOID_TURN_LEFT:
-    case AVOID_FORWARD_1:
-    case AVOID_CURVE_RIGHT:
-    case AVOID_FORWARD_2:
-    case AVOID_TURN_BACK:
-    case AVOID_SEEK_LINE:          ledsAll(COL_RED);    break;
     default:                       ledsAll(COL_PURPLE); break;
   }
 }
@@ -426,11 +404,10 @@ void loop() {
     updateMarkerStable();
 
     int d = readDistanceCm();
-    if (d <= obstacleCm) {
+    if (!objectGrabbed && d <= obstacleCm) {
       objectGrabbed   = true;
       gripperHoldOpen = false;
       gripper.write(gripClose);
-      stopMotors(); enterState(AVOID_TURN_LEFT); return;
     }
 
     if (!dropArmed && now - runFollowStart >= dropMinMs) {
@@ -443,44 +420,6 @@ void loop() {
     if (dropArmed && markerStable) {
       stopMotors(); enterState(DROP_BACKUP_BEFORE_OPEN);
     }
-    return;
-  }
-
-  // ── OBSTACLE AVOIDANCE ────────────────────────────────────────────────
-  if (state == AVOID_TURN_LEFT) {
-    pivotRight(avoidTurnRightL, avoidTurnRightR);
-    if (now - stateStart >= avoidTurnLeftMs) { stopMotors(); enterState(AVOID_FORWARD_1); }
-    return;
-  }
-  if (state == AVOID_FORWARD_1) {
-    driveForward(avoidFwdL, avoidFwdR);
-    if (now - stateStart >= avoidForward1Ms) { stopMotors(); enterState(AVOID_CURVE_RIGHT); }
-    return;
-  }
-  if (state == AVOID_CURVE_RIGHT) {
-    pivotLeft(avoidTurnLeftL, avoidTurnLeftR);
-    readLine();
-    if (lineSeenNow())                         { enterState(RUN_FOLLOW); return; }
-    if (now - stateStart >= avoidCurveRightMs) { stopMotors(); enterState(AVOID_FORWARD_2); }
-    return;
-  }
-  if (state == AVOID_FORWARD_2) {
-    driveForward(avoidFwdL, avoidFwdR);
-    if (now - stateStart >= avoidForward2Ms) { stopMotors(); enterState(AVOID_TURN_BACK); }
-    return;
-  }
-  if (state == AVOID_TURN_BACK) {
-    motorSet(motorL_fwd, motorL_rev, avoidTurnBackL, true,  invertLeft);
-    motorSet(motorR_fwd, motorR_rev, avoidTurnBackR, false, invertRight);
-    readLine();
-    if (lineSeenNow())                        { enterState(RUN_FOLLOW); return; }
-    if (now - stateStart >= avoidTurnBackMs)  { stopMotors(); enterState(AVOID_SEEK_LINE); }
-    return;
-  }
-  if (state == AVOID_SEEK_LINE) {
-    driveForward(afterTurnL, afterTurnR);
-    readLine();
-    if (lineSeenNow() || now - stateStart >= avoidSeekMs) enterState(RUN_FOLLOW);
     return;
   }
 
