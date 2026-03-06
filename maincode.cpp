@@ -29,13 +29,16 @@ const int FLAG_MIN_CM = 3;
 const int FLAG_MAX_CM = 20;
 
 // --- Timings ---
-unsigned long startBlindMs       = 850;
-unsigned long turnLeftMs         = 630;
+unsigned long startBlindMs       = 1500;
+unsigned long turnLeftMs         = 800;
 unsigned long afterTurnForwardMs = 600;
+
+unsigned long squareSince    = 0;
+unsigned long squareDetectMs = 80;  // how long it must stay black to count as the square
 
 // --- Speeds ---
 float startL      = 0.95, startR     = 1.00;
-float turnSpd     = 0.70;
+float turnSpd     = 0.85;
 float afterTurnL  = 0.70, afterTurnR = 0.65;
 float backL       = 0.95, backR      = 1.00;
 
@@ -62,7 +65,7 @@ unsigned long releaseAfterReverseMs = 250;
 unsigned long dropHoldMs            = 450;
 unsigned long dropMinMs             = 2000;
 unsigned long nonBlackArmMs         = 200;
-int markerBlackCount = 7;
+int markerBlackCount = 5;
 int markerStableMs   = 200;
 
 const unsigned long SONAR_INTERVAL_MS = 300;
@@ -383,10 +386,6 @@ void loop() {
   // ── START_FORWARD: blind forward, snap to follow if line found ─────────
   if (state == START_FORWARD) {
     driveForward(startL, startR);
-    LineState line = readLine();
-    if (line != LINE_NONE && line != LINE_END) {
-      stopMotors(); enterState(RUN_FOLLOW); return;
-    }
     if (now - stateStart >= startBlindMs) {
       stopMotors(); enterState(START_TURN_LEFT);
     }
@@ -395,9 +394,14 @@ void loop() {
 
   // ── START_TURN_LEFT: blind pivot left ─────────────────────────────────
   if (state == START_TURN_LEFT) {
-    turnLeft(turnSpd);
+    // brief full power kick to break static friction
+    if (now - stateStart < 150) {
+      turnLeft(1.00);
+    } else {
+      turnLeft(turnSpd);
+    }
     if (now - stateStart >= turnLeftMs) {
-      stopMotors(); enterState(START_FORWARD_AFTER_TURN);
+      stopMotors(); enterState(RUN_FOLLOW);
     }
     return;
   }
@@ -405,10 +409,6 @@ void loop() {
   // ── START_FORWARD_AFTER_TURN: forward until line or timeout ───────────
   if (state == START_FORWARD_AFTER_TURN) {
     driveForward(afterTurnL, afterTurnR);
-    readLine();
-    if (lineSeenNow()) {
-      stopMotors(); enterState(RUN_FOLLOW); return;
-    }
     if (now - stateStart >= afterTurnForwardMs) {
       stopMotors(); enterState(RUN_FOLLOW);
     }
