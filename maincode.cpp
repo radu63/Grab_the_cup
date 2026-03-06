@@ -47,7 +47,7 @@ float followLeftTurnL  = 0.00, followLeftTurnR  = 1.00;  // full pivot left
 float followRightTurnL = 1.00, followRightTurnR = 0.00;  // full pivot right
 
 // --- Obstacle avoidance ---
-int obstacleCm = 20;
+int obstacleCm = 5;
 unsigned long avoidTurnLeftMs   = 500;
 unsigned long avoidForward1Ms   = 650;
 unsigned long avoidCurveRightMs = 800;
@@ -110,6 +110,8 @@ unsigned long lastSonarPingMs = 0;
 
 bool gripperHoldOpen = false;
 unsigned long lastGripCmd = 0;
+
+bool objectGrabbed = false;
 
 bool dropArmed = false;
 unsigned long runFollowStart = 0;
@@ -297,7 +299,7 @@ void enterState(State s) {
       dropArmed       = false;
       runFollowStart  = millis();
       nonBlackSince   = 0;
-      gripperHoldOpen = false;
+      gripperHoldOpen = !objectGrabbed;  // stay closed if already grabbed
       break;
     case DROP_BACKUP_BEFORE_OPEN:
       dropReverseStart = millis();
@@ -425,6 +427,9 @@ void loop() {
 
     int d = readDistanceCm();
     if (d <= obstacleCm) {
+      objectGrabbed   = true;
+      gripperHoldOpen = false;
+      gripper.write(gripClose);
       stopMotors(); enterState(AVOID_TURN_LEFT); return;
     }
 
