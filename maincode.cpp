@@ -159,6 +159,11 @@ unsigned long markerSince = 0;
 // drop reverse timing
 unsigned long dropReverseStart = 0;
 
+// used for the start sequence
+bool startupDone = false;
+int startupStep = 0;
+unsigned long startupTimer = 0;
+
 // ==================== LED Functions ====================
 
 void ledsAll(uint32_t c){ 
@@ -357,7 +362,7 @@ void gripperHoldUpdate(void){
   if(now - lastGripCmd < GRIPPER_HZ_MS) return;
   lastGripCmd = now;
   if(gripperHoldOpen){
-    gripper.write(gripOpen);  
+    gripper.write(gripOpen);
   } else {
     gripper.write(gripClose); 
   }
@@ -429,17 +434,58 @@ void loop(){
   if(state == WAIT_FLAG){
     stopMotors();
     ledsAll(COL_BLUE);
-    lastSonarPingMs = 0;   
-    int ok = 0;
-    for(int i = 0; i < 5; i++){
-      if(checkFlagStart()) ok++;
+//    lastSonarPingMs = 0;   
+//    int ok = 0;
+//    for(int i = 0; i < 5; i++){
+//      if(checkFlagStart()) ok++;
+//    }
+//    if(ok >= 3){
+//      raceStarted = true;
+//      enterState(START_FORWARD);
+    // STARTUP GRIPPER TEST
+  if(state == WAIT_FLAG){
+  stopMotors();
+  ledsAll(COL_BLUE);
+
+  // STARTUP GRIPPER TEST
+  if(!startupDone){
+
+    if(startupStep == 0){
+      gripper.write(gripOpen);
+      startupTimer = millis();
+      startupStep = 1;
     }
-    if(ok >= 3){
-      raceStarted = true;
-      enterState(START_FORWARD);
+
+    else if(startupStep == 1 && millis() - startupTimer > 600){
+      gripper.write(gripClose);
+      startupTimer = millis();
+      startupStep = 2;
     }
+
+    else if(startupStep == 2 && millis() - startupTimer > 600){
+      startupDone = true;
+    }
+
     return;
   }
+
+  // WAIT FOR FLAG
+  // check if flag is removed
+  int flagPresentCount = 0;
+  for(int i = 0; i<5; i++){
+    if(checkFlagStart()) flagPresentCount++;
+  }
+
+// start blind start as soon as flag is gone
+  if(flagPresentCount == 0) {  // flag is removed
+    gripper.write(gripOpen);  // open before start
+    raceStarted = true;
+    enterState(START_FORWARD);
+  }
+
+  return;
+}
+
 
   unsigned long now = millis();
   LineState line = readLine();
@@ -451,7 +497,7 @@ void loop(){
     driveForward(startL, startR);
     if(now - stateStart >= startBlindMs){
       stopMotors();
-      enterState(START_GRAB);
+      enterState(START_TURN_LEFT);
     }
   }
   else if(state == START_GRAB){
@@ -487,7 +533,6 @@ void loop(){
 //      stopMotors();
 //      enterState(AVOID_TURN_LEFT);
 //      return;
-    }
     handleLine(line);
     setLedsForLine(line);
 
@@ -576,5 +621,6 @@ void loop(){
   }
   else if(state == DONE){
     stopMotors();
+  }
   }
 }
