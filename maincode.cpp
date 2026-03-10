@@ -1,10 +1,14 @@
 #include <Arduino.h>
 #include <Servo.h>
 #include <Adafruit_NeoPixel.h>
+#include <SoftwareSerial.h>
 
 // ==================== Config ====================
 
 #define POSFin 0b10001111
+
+// Add this near the top with other globals
+SoftwareSerial btSerial(2, 11); // HR=RX=2, HT=TX=11
 
 // --- Pins ---
 const int NEO_PIN     = 4;
@@ -125,21 +129,32 @@ void ledsLeftRight(uint32_t l, uint32_t r) {
 
 void setLedsForState(State s) {
   switch (s) {
+    case START_FORWARD:
+    case START_FORWARD_AFTER_TURN:
+      ledsAll(COL_YELLOW); break;
+
+    case START_TURN_LEFT:
+      ledsAll(COL_GREEN); break;
+
+    case DROP_BACKUP_BEFORE_OPEN:
+    case DROP_OPEN_WHILE_BACKING:
+    case DROP_BACKUP_AFTER_OPEN:
+      ledsAll(COL_WHITE); break;
+
     case STARTUP:
     case WAIT_FLAG:
     case START_OPEN_GRIPPER:
-    case START_FORWARD:
-    case START_TURN_LEFT:
-    case START_FORWARD_AFTER_TURN: ledsAll(COL_BLUE);   break;
-    case RUN_FOLLOW:               ledsAll(COL_GREEN);  break;
-    default:                       ledsAll(COL_PURPLE); break;
+    case DONE:
+    default:
+      ledsAll(COL_RED); break;
   }
 }
 
 void setLedsForLine(LineState line) {
-  if      (line == LINE_LEFT)  ledsLeftRight(COL_YELLOW, COL_GREEN);
-  else if (line == LINE_RIGHT) ledsLeftRight(COL_GREEN,  COL_YELLOW);
-  else                         ledsAll(COL_GREEN);
+  if      (line == LINE_LEFT)   ledsAll(COL_GREEN);   // turning
+  else if (line == LINE_RIGHT)  ledsAll(COL_GREEN);   // turning
+  else if (line == LINE_CENTER) ledsAll(COL_YELLOW);  // forward
+  else                          ledsAll(COL_RED);     // stopped
 }
 
 // ==================== Motors ====================
@@ -290,8 +305,9 @@ void enterState(State s) {
     case DONE:
       if (!finishSent) {
         finishSent = true;
-        Serial.write((uint8_t)POSFin);
-        Serial.write((uint8_t)POSFin);
+        btSerial.write((uint8_t)POSFin);
+        btSerial.write((uint8_t)POSFin);
+
       }
       break;
     default: break;
@@ -302,7 +318,9 @@ void enterState(State s) {
 // ==================== Setup ====================
 
 void setup() {
+
   Serial.begin(9600);
+  btSerial.begin(9600);
 
   pixels.begin();
   pixels.setBrightness(40);
