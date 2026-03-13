@@ -7,6 +7,7 @@
 
 #define POSFin 0b10001111
 
+// Add this near the top with other globals
 SoftwareSerial btSerial(2, 11); // HR=RX=2, HT=TX=11
 
 // --- Pins ---
